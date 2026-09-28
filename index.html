@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Poradie čísel</title>
+<style>
+:root{
+  --cell:64px; --gap:4px; --panelGap:24px; --ctrlH:96px; --line:#B9C4D4;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  margin:0; overflow:hidden; overscroll-behavior:none; background:#F4F7FB;
+  font-family:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  color:#22304A;
+  user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+  touch-action:none;
+}
+.hidden{display:none!important;}
+#app{height:100vh; height:100dvh; display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 14px 12px;}
+header{display:flex; align-items:baseline; justify-content:center; gap:14px; flex-wrap:wrap; line-height:1.15; padding:0 8px;}
+.title{font-size:clamp(13px,2.2vh,20px); font-weight:600; color:#8B97A8;}
+.instr{font-size:clamp(17px,3.5vh,30px); font-weight:700; color:#2E415F;}
+main{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; gap:var(--panelGap);}
+.panel{background:#fff; border-radius:14px; padding:10px; box-shadow:0 2px 10px rgba(35,50,80,.10);}
+.panel-left{position:relative;}
+.panel-right{position:relative;}
+
+#table{display:grid; grid-template-columns:repeat(3,var(--cell)); grid-auto-rows:var(--cell); gap:var(--gap);}
+.cell{
+  width:var(--cell); height:var(--cell);
+  display:flex; align-items:center; justify-content:center;
+  background:#fff; border:2px solid var(--line); border-radius:calc(var(--cell)*.14);
+  font-size:calc(var(--cell)*.5); font-weight:400; line-height:1;
+  font-variant-numeric:tabular-nums;
+  transition:background-color .15s, border-color .15s;
+}
+.cell.pre{background:#FFF7DF; border-color:#E3CE8F; color:#5A4A12;}
+.cell.child{font-weight:700;}
+.cell.correct{background:#A8DB8A; border-color:#4E9A33; color:#123F0B; font-weight:700;}
+.cell.wrong{background:#F9AFAF; border-color:#D9534F; color:#7A0F0F; font-weight:700;}
+.cell.drop-hover{background:#FFF0B3; border-color:#EFAF1F;}
+.cell.shake{animation:shake .28s ease;}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+
+#tray{display:grid; grid-template-columns:repeat(5,var(--cell)); grid-auto-rows:var(--cell); gap:var(--gap);}
+.right-col{position:relative; display:flex; flex-direction:column; align-items:center; gap:8px;}
+.right-col .controls{width:100%;}
+.tile{
+  width:var(--cell); height:var(--cell);
+  display:flex; align-items:center; justify-content:center;
+  background:#EAF2FF; border:2px solid #7FA8E0; border-radius:calc(var(--cell)*.14);
+  font-size:calc(var(--cell)*.5); font-weight:700; line-height:1; color:#17407A;
+  font-variant-numeric:tabular-nums;
+  touch-action:none; cursor:grab;
+}
+.tile.dragging{opacity:.35;}
+#ghost{
+  position:fixed; left:0; top:0; z-index:1000; pointer-events:none; display:none;
+  align-items:center; justify-content:center;
+  width:var(--cell); height:var(--cell);
+  background:#EAF2FF; border:2px solid #7FA8E0; border-radius:calc(var(--cell)*.14);
+  font-size:calc(var(--cell)*.5); font-weight:700; line-height:1; color:#17407A;
+  transform:translate(-50%,-50%) scale(1.07);
+  box-shadow:0 8px 18px rgba(30,50,90,.30);
+}
+
+.controls{height:var(--ctrlH); width:100%; display:flex; flex-direction:column; align-items:center; gap:6px;}
+.btn{
+  font-family:inherit; font-weight:800; letter-spacing:.6px; color:#fff; white-space:nowrap;
+  background:#2F86EB; border:none; border-radius:999px; cursor:pointer;
+  height:max(44px,calc(var(--cell)*.72)); padding:0 max(22px,calc(var(--cell)*.5));
+  font-size:max(17px,calc(var(--cell)*.3));
+  box-shadow:0 3px 0 #1F66BC;
+}
+.btn:active{transform:translateY(2px); box-shadow:0 1px 0 #1F66BC;}
+.btn.green{background:#3BA935; box-shadow:0 3px 0 #2A7D26;}
+.btn.green:active{box-shadow:0 1px 0 #2A7D26;}
+.fb{
+  width:100%; min-height:max(20px,calc(var(--cell)*.4));
+  display:flex; align-items:center; justify-content:center;
+  font-size:max(15px,calc(var(--cell)*.3)); font-weight:600; color:#3D4C63;
+  text-align:center; padding:0 6px;
+}
+.fb.err{color:#B3261E;}
+
+.win{
+  position:absolute; inset:0; z-index:20; border-radius:14px;
+  background:linear-gradient(180deg,#FDFEFF,#EAF7E4);
+  box-shadow:0 2px 10px rgba(35,50,80,.10);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:calc(var(--cell)*.28);
+}
+.win .smiley{width:calc(var(--cell)*1.7); height:calc(var(--cell)*1.7); animation:pop .5s cubic-bezier(.34,1.56,.64,1);}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+.win-text{font-size:calc(var(--cell)*.6); font-weight:800; color:#2E7D32;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hdr">
+    <span class="title">Poradie čísel</span>
+    <span class="instr">Doplň čísla tak, aby išli za sebou.</span>
+  </header>
+  <main>
+    <section class="panel panel-left">
+      <div id="table"></div>
+    </section>
+    <div class="right-col">
+      <section class="panel panel-right">
+        <div id="tray"></div>
+      </section>
+      <div class="controls">
+        <button id="checkBtn" class="btn hidden" type="button">KONTROLA</button>
+        <div id="fb" class="fb"></div>
+      </div>
+      <div id="win" class="win hidden">
+        <svg class="smiley" viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="50" cy="50" r="45" fill="#FFD93B" stroke="#E3A600" stroke-width="4"/>
+          <circle cx="36" cy="41" r="6" fill="#4A3200"/>
+          <circle cx="64" cy="41" r="6" fill="#4A3200"/>
+          <path d="M31 60 Q50 78 69 60" fill="none" stroke="#4A3200" stroke-width="6" stroke-linecap="round"/>
+        </svg>
+        <div class="win-text">Výborne!</div>
+        <button id="newBtn" class="btn green" type="button">NOVÁ HRA</button>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="ghost"></div>
+
+<script>
+(function(){
+"use strict";
+var ROWS=10, COLS=3;
+var tableEl=document.getElementById('table');
+var trayEl=document.getElementById('tray');
+var checkBtn=document.getElementById('checkBtn');
+var newBtn=document.getElementById('newBtn');
+var fbEl=document.getElementById('fb');
+var winEl=document.getElementById('win');
+var hdrEl=document.getElementById('hdr');
+var ghost=document.getElementById('ghost');
+
+var starts=[], cells=[], cellEls=[], won=false, drag=null;
+
+function shuffle(a){var i,j,t;for(i=a.length-1;i>0;i--){j=Math.floor(Math.random()*(i+1));t=a[i];a[i]=a[j];a[j]=t;}return a;}
+
+/* ---------- generovanie zadania ---------- */
+function genGame(){
+  var pool=[],i;
+  for(i=1;i<=18;i++)pool.push(i);
+  shuffle(pool);
+  starts=pool.slice(0,10).sort(function(a,b){return a-b;});
+  var P=['L2','M1','R2','R1'];
+  var pats=P.slice(0,3);                    /* L2, M1, R2 vždy */
+  if(Math.random()<0.5)pats.push('R1');     /* R1 najviac 1× */
+  while(pats.length<10)pats.push(P[Math.floor(Math.random()*3)]);
+  shuffle(pats);
+  cells=starts.map(function(n,r){
+    var row=[{kind:'empty',value:null},{kind:'empty',value:null},{kind:'empty',value:null}];
+    var p=pats[r];
+    if(p==='L2'){row[0]={kind:'pre',value:n};row[1]={kind:'pre',value:n+1};}
+    else if(p==='M1'){row[1]={kind:'pre',value:n+1};}
+    else if(p==='R2'){row[1]={kind:'pre',value:n+1};row[2]={kind:'pre',value:n+2};}
+    else{row[2]={kind:'pre',value:n+2};}
+    return row;
+  });
+  won=false;
+  winEl.classList.add('hidden');
+  fbEl.textContent=''; fbEl.className='fb';
+  refreshCheckBtn();
+}
+
+/* ---------- DOM ---------- */
+function build(){
+  var r,c,v;
+  tableEl.innerHTML=''; trayEl.innerHTML=''; cellEls=[];
+  for(r=0;r<ROWS;r++){
+    cellEls.push([]);
+    for(c=0;c<COLS;c++){
+      var d=document.createElement('div');
+      d.className='cell';
+      d.setAttribute('data-r',r); d.setAttribute('data-c',c);
+      tableEl.appendChild(d);
+      cellEls[r].push(d);
+    }
+  }
+  for(v=1;v<=20;v++){
+    var t=document.createElement('div');
+    t.className='tile'; t.textContent=v; t.setAttribute('data-v',v);
+    t.addEventListener('pointerdown',onTileDown);
+    trayEl.appendChild(t);
+  }
+}
+
+function kindClass(k){
+  if(k==='pre')return' pre';
+  if(k==='child')return' child';
+  if(k==='correct')return' correct';
+  if(k==='wrong')return' wrong';
+  return'';
+}
+function renderCell(r,c){
+  var cell=cells[r][c];
+  cellEls[r][c].textContent=(cell.value==null?'':String(cell.value));
+  cellEls[r][c].className='cell'+kindClass(cell.kind);
+}
+function renderAll(){
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)renderCell(r,c);
+  refreshCheckBtn();
+}
+
+/* ---------- pravidlá ---------- */
+function allFilled(){
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(cells[r][c].kind==='empty')return false;
+  return true;
+}
+function anyWrong(){
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++)if(cells[r][c].kind==='wrong')return true;
+  return false;
+}
+function refreshCheckBtn(){
+  var show=(!won)&&allFilled()&&(!anyWrong());
+  checkBtn.classList.toggle('hidden',!show);
+}
+function canDrop(r,c,v){
+  var cell=cells[r][c],k=cell.kind;
+  if(k==='empty'||k==='child')return true;       /* prázdne aj nevyhodnotené sa dá prestať/napraviť */
+  if(k==='wrong')return v!==cell.value;          /* rovnaké číslo opravou nie je */
+  return false;                                   /* predvyplnené a zelené sú zamknuté */
+}
+function place(r,c,v){
+  if(won)return;
+  var row=cells[r]; if(!row)return;
+  var cell=row[c]; if(!cell)return;
+  if(cell.kind==='pre'||cell.kind==='correct')return;
+  var wasWrong=(cell.kind==='wrong');
+  cell.kind='child'; cell.value=v;
+  renderCell(r,c);
+  refreshCheckBtn();
+  if(wasWrong&&(!anyWrong())){fbEl.textContent='Teraz stlač KONTROLA.';fbEl.className='fb';}
+}
+
+/* ---------- kontrola ---------- */
+function doCheck(){
+  if(won)return;
+  var bad=false,r,c,cell;
+  for(r=0;r<ROWS;r++)for(c=0;c<COLS;c++){
+    cell=cells[r][c];
+    if(cell.kind!=='child')continue;             /* zelené a predvyplnené sa nevyhodnocujú */
+    if(cell.value===starts[r]+c){cell.kind='correct';}
+    else{cell.kind='wrong';bad=true;}
+    renderCell(r,c);
+  }
+  if(bad){fbEl.textContent='Oprav červené kartičky.';fbEl.className='fb err';}
+  else{winGame();}
+  refreshCheckBtn();
+}
+function winGame(){
+  won=true;
+  fbEl.textContent=''; fbEl.className='fb';
+  winEl.classList.remove('hidden');
+  refreshCheckBtn();
+}
+
+/* ---------- veľkosť štvorcov podľa obrazovky ---------- */
+function layout(){
+  var W=window.innerWidth,H=window.innerHeight;
+  var headerH=hdrEl.offsetHeight||40;
+  var availH=H-headerH-32;
+  var panelGap=Math.round(Math.min(30,Math.max(14,W*0.02)));
+  var availW=W-28-panelGap;
+  var btnH=Math.round(Math.min(64,Math.max(44,H*0.07)));
+  var fbH=Math.round(Math.min(34,Math.max(24,H*0.035)));
+  var ctrlH=btnH+fbH+12;
+  var sH=(availH-56-6)/10;         /* tabuľka: 10 riadkov + medzery + panel */
+  var sH2=(availH-56-ctrlH)/4;     /* pravý panel: 4 riadky zásobníka + ovládanie */
+  var sW=(availW-64)/8;            /* 3 stĺpce tabuľky + 5 kartičiek vedľa seba */
+  var s=Math.floor(Math.min(sH,sH2,sW,120));
+  s=Math.max(32,s);
+  var st=document.documentElement.style;
+  st.setProperty('--cell',s+'px');
+  st.setProperty('--panelGap',panelGap+'px');
+  st.setProperty('--ctrlH',ctrlH+'px');
+}
+
+/* ---------- ťahanie kartičiek (Pointer Events) ---------- */
+function tileSize(){
+  var t=trayEl.firstChild;
+  return t?t.offsetWidth:64;
+}
+function moveGhost(x,y){
+  var oy=(drag&&drag.offY)?drag.offY:0;
+  ghost.style.left=x+'px';
+  ghost.style.top=(y-oy)+'px';
+}
+/* cieľový štvorček: najbližší stred štvorčeka k stredu viditeľnej kartičky (s toleranciou) */
+function nearestCell(gx,gy,droppableOnly){
+  if(!drag||!drag.cells)return null;
+  var best=null,bestD=Infinity;
+  for(var i=0;i<drag.cells.length;i++){
+    var it=drag.cells[i];
+    if(droppableOnly&&!canDrop(it.r,it.c,drag.v))continue;
+    var dx=gx-it.cx,dy=gy-it.cy,d=dx*dx+dy*dy;
+    if(d<bestD){bestD=d;best=it;}
+  }
+  if(!best)return null;
+  var t=drag.tile*0.7;                      /* tolerancia okolo stredu štvorčeka */
+  if(bestD>t*t)return null;
+  return best;
+}
+function setHover(el){
+  if(drag.hover===el)return;
+  if(drag.hover)drag.hover.classList.remove('drop-hover');
+  drag.hover=el;
+  if(el)el.classList.add('drop-hover');
+}
+function onTileDown(e){
+  if(drag||won)return;
+  if(e.button&&e.button>0)return;
+  e.preventDefault();
+  var v=parseInt(e.currentTarget.getAttribute('data-v'),10);
+  var ts=tileSize();
+  var offY=(e.pointerType==='touch')?Math.round(ts*0.75):0;
+  var cs=[];
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
+    var b=cellEls[r][c].getBoundingClientRect();
+    cs.push({r:r,c:c,el:cellEls[r][c],cx:b.left+b.width/2,cy:b.top+b.height/2});
+  }
+  drag={id:e.pointerId,v:v,src:e.currentTarget,hover:null,offY:offY,tile:ts,cells:cs};
+  e.currentTarget.classList.add('dragging');
+  ghost.textContent=v;
+  ghost.style.transition='none';
+  ghost.style.opacity='1';
+  ghost.style.transform='translate(-50%,-50%) scale(1.07)';
+  ghost.style.display='flex';
+  moveGhost(e.clientX,e.clientY);
+  try{e.currentTarget.setPointerCapture(e.pointerId);}catch(err){}
+  window.addEventListener('pointermove',onMove,{passive:false});
+  window.addEventListener('pointerup',onUp);
+  window.addEventListener('pointercancel',onCancel);
+}
+function onMove(e){
+  if(!drag||e.pointerId!==drag.id)return;
+  e.preventDefault();
+  moveGhost(e.clientX,e.clientY);
+  var gx=e.clientX,gy=e.clientY-drag.offY;   /* cieľ = stred viditeľnej kartičky */
+  var it=nearestCell(gx,gy,true);
+  setHover(it?it.el:null);
+}
+function endDragListeners(){
+  window.removeEventListener('pointermove',onMove);
+  window.removeEventListener('pointerup',onUp);
+  window.removeEventListener('pointercancel',onCancel);
+}
+function onUp(e){
+  if(!drag||e.pointerId!==drag.id)return;
+  e.preventDefault();
+  var x=e.clientX,y=e.clientY;
+  var v=drag.v,src=drag.src;
+  var gx=x,gy=y-drag.offY;                   /* cieľ = stred viditeľnej kartičky */
+  var hit=nearestCell(gx,gy,true);
+  var valid=hit?hit.el:null;
+  var shakeEl=null;
+  if(!valid){
+    var any=nearestCell(gx,gy,false);
+    if(any){
+      var rc=cells[any.r][any.c];
+      if(rc.kind==='wrong'&&rc.value===v)shakeEl=any.el;
+    }
+  }
+  setHover(null);
+  endDragListeners();
+  drag=null;
+  src.classList.remove('dragging');
+  var g=ghost;
+  if(valid){
+    var r=hit.r,c=hit.c;
+    var rect=valid.getBoundingClientRect();
+    g.style.transition='left .12s ease-out,top .12s ease-out,transform .12s ease-out';
+    g.style.left=(rect.left+rect.width/2)+'px';
+    g.style.top=(rect.top+rect.height/2)+'px';
+    g.style.transform='translate(-50%,-50%) scale(1)';
+    setTimeout(function(){
+      if(!drag)g.style.display='none';
+      place(r,c,v);
+    },125);
+  }else{
+    if(shakeEl){shakeEl.classList.remove('shake');void shakeEl.offsetWidth;shakeEl.classList.add('shake');}
+    g.style.transition='opacity .15s ease-out';
+    g.style.opacity='0';
+    setTimeout(function(){if(!drag)g.style.display='none';},160);
+  }
+}
+function onCancel(e){
+  if(!drag||e.pointerId!==drag.id)return;
+  setHover(null);
+  endDragListeners();
+  drag.src.classList.remove('dragging');
+  ghost.style.display='none';
+  drag=null;
+}
+
+/* ---------- inicializácia ---------- */
+checkBtn.addEventListener('click',function(){doCheck();});
+newBtn.addEventListener('click',function(){genGame();renderAll();});
+window.addEventListener('resize',layout);
+window.addEventListener('orientationchange',layout);
+document.addEventListener('contextmenu',function(e){e.preventDefault();});
+document.addEventListener('dragstart',function(e){e.preventDefault();});
+
+genGame();
+build();
+renderAll();
+layout();
+
+/* testovací prístup pre automatizované overovanie */
+window.__game={
+  cells:function(){return cells;},
+  starts:function(){return starts;},
+  place:place, check:doCheck, canDrop:canDrop, gen:genGame, refresh:refreshCheckBtn,
+  state:function(){return{won:won,checkVisible:!checkBtn.classList.contains('hidden'),fb:fbEl.textContent};}
+};
+})();
+</script>
+</body>
+</html>
